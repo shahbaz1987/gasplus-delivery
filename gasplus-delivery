@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gas Plus - ڈیجیٹل ڈلیوری</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: 'Jameel Noori Nastaleeq', Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #receiptBox {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            border-top: 5px solid #ff0000;
+        }
+        h2 { text-align: center; color: #333; margin-top: 0; }
+        .date-time { text-align: center; color: #777; font-size: 14px; margin-bottom: 20px; }
+        .btn { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; font-weight: bold; }
+        .mic-btn { background-color: #007bff; color: white; }
+        .mic-btn.recording { background-color: #dc3545; }
+        textarea { width: 90%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; resize: none; margin-bottom: 10px; }
+        
+        canvas { 
+            border: 2px dashed #007bff; 
+            border-radius: 5px; 
+            background: #fafafa; 
+            touch-action: none; 
+            width: 100%; 
+            display: block;
+        }
+        .clear-btn { background-color: #ffc107; color: #333; padding: 8px; font-size: 14px; margin-bottom: 20px; }
+        
+        /* واٹس ایپ بٹن اب ہمیشہ ظاہر رہے گا */
+        .share-btn { background-color: #25D366; color: white; font-size: 18px; margin-top: 20px; display: block; }
+        
+        .hide-on-receipt { display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="receiptBox">
+        <h2>گیس پلس (Gas Plus)</h2>
+        <div class="date-time" id="dateTimeDisplay"></div>
+
+        <div class="hide-on-receipt">
+            <button id="micBtn" class="btn mic-btn">🎤 وائس ڈلیوری تفصیل بتائیں</button>
+        </div>
+        
+        <label><b>تفصیل:</b></label>
+        <textarea id="deliveryText" rows="3" placeholder='مثال: متین پکوان شاہد کو 5 سلنڈر دئیے 5 خالی اٹھائے'></textarea>
+
+        <label><b>کسٹمر کے دستخط:</b></label>
+        <canvas id="sigCanvas" width="350" height="150"></canvas>
+        
+        <div class="hide-on-receipt">
+            <button id="clearSigBtn" class="btn clear-btn">دستخط صاف کریں (Clear)</button>
+        </div>
+    </div>
+
+    <!-- شیئر بٹن اب چھپا ہوا نہیں ہے -->
+    <button id="shareBtn" class="btn share-btn">✅ کنفرم اور واٹس ایپ پر شیئر کریں</button>
+
+    <script>
+        // وقت سیٹ کریں
+        document.getElementById('dateTimeDisplay').innerText = new Date().toLocaleString('ur-PK');
+
+        // --- وائس کی سیٹنگ ---
+        const micBtn = document.getElementById('micBtn');
+        const deliveryText = document.getElementById('deliveryText');
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ur-PK'; // اردو زبان
+            recognition.interimResults = false;
+
+            micBtn.addEventListener('click', () => {
+                if(window.location.protocol === 'file:') {
+                    alert("مسئلہ: آپ نے فائل موبائل میموری سے کھولی ہے۔ مائیک صرف لائیو ویب سائٹ (GitHub) پر کام کرتا ہے۔");
+                    return;
+                }
+                
+                try {
+                    recognition.start();
+                    micBtn.innerText = "سن رہا ہے... بولیں!";
+                    micBtn.classList.add('recording');
+                } catch (e) {
+                    alert("مائیک شروع کرنے میں مسئلہ: " + e.message);
+                }
+            });
+
+            recognition.addEventListener('result', (e) => {
+                deliveryText.value = e.results[0][0].transcript;
+            });
+
+            recognition.addEventListener('end', () => {
+                micBtn.innerText = "🎤 وائس ڈلیوری تفصیل بتائیں";
+                micBtn.classList.remove('recording');
+            });
+            
+            // ایرر پکڑنے والا کوڈ (یہ بتائے گا کہ اصل خرابی کیا ہے)
+            recognition.addEventListener('error', (e) => {
+                let errorMsg = "نامعلوم مسئلہ";
+                if(e.error === 'not-allowed') errorMsg = "براؤزر کو مائیکروفون استعمال کرنے کی اجازت (Permission) نہیں دی گئی۔";
+                if(e.error === 'no-speech') errorMsg = "آواز سنائی نہیں دی۔";
+                if(e.error === 'network') errorMsg = "انٹرنیٹ کنکشن کا مسئلہ ہے۔";
+                
+                alert("مائیک کا ایرر: " + errorMsg);
+                micBtn.innerText = "🎤 وائس ڈلیوری تفصیل بتائیں";
+                micBtn.classList.remove('recording');
+            });
+        } else {
+            micBtn.innerText = "آپ کے براؤزر میں وائس سپورٹ نہیں ہے۔ کی بورڈ استعمال کریں۔";
+        }
+
+        // --- دستخط کی سیٹنگ ---
+        const canvas = document.getElementById('sigCanvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let hasSigned = false;
+
+        function getCoordinates(e) {
+            if (e.touches && e.touches.length > 0) {
+                return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+            return { x: e.clientX, y: e.clientY };
+        }
+
+        function startPosition(e) {
+            isDrawing = true;
+            draw(e);
+        }
+
+        function finishedPosition() {
+            isDrawing = false;
+            ctx.beginPath();
+            hasSigned = true;
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault(); 
+
+            const rect = canvas.getBoundingClientRect();
+            const coords = getCoordinates(e);
+            
+            const x = (coords.x - rect.left) * (canvas.width / rect.width);
+            const y = (coords.y - rect.top) * (canvas.height / rect.height);
+
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#000';
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        canvas.addEventListener('mousedown', startPosition);
+        canvas.addEventListener('mouseup', finishedPosition);
+        canvas.addEventListener('mousemove', draw);
+
+        canvas.addEventListener('touchstart', startPosition, {passive: false});
+        canvas.addEventListener('touchend', finishedPosition);
+        canvas.addEventListener('touchmove', draw, {passive: false});
+
+        document.getElementById('clearSigBtn').addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            hasSigned = false;
+        });
+
+        // --- شیئر کرنے کی سیٹنگ ---
+        const shareBtn = document.getElementById('shareBtn');
+        shareBtn.addEventListener('click', async () => {
+            
+            // چیک کریں کہ تفصیل لکھی گئی ہے اور دستخط ہوئے ہیں یا نہیں
+            if(deliveryText.value.trim() === "") {
+                alert("براہ کرم ڈلیوری کی تفصیل لکھیں یا وائس سے ٹائپ کریں۔");
+                return;
+            }
+            if(!hasSigned) {
+                alert("براہ کرم کسٹمر سے خانے میں دستخط لیں۔");
+                return;
+            }
+
+            const receiptBox = document.getElementById('receiptBox');
+            const hiddenElements = document.querySelectorAll('.hide-on-receipt');
+            
+            hiddenElements.forEach(el => el.style.display = 'none');
+            shareBtn.innerText = "رسید بن رہی ہے...";
+
+            try {
+                const canvasImage = await html2canvas(receiptBox, { scale: 2 });
+                canvasImage.toBlob(async (blob) => {
+                    const file = new File([blob], "GasPlus_Receipt.png", { type: "image/png" });
+                    
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Gas Plus Delivery',
+                            text: 'گیس پلس - ڈلیوری رسید'
+                        });
+                    } else {
+                        const imgUrl = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.download = "GasPlus_Receipt.png";
+                        link.href = imgUrl;
+                        link.click();
+                        
+                        const waText = encodeURIComponent("گیس پلس ڈلیوری رسید:\n" + deliveryText.value);
+                        window.open(`https://wa.me/?text=${waText}`, '_blank');
+                    }
+                    
+                    hiddenElements.forEach(el => el.style.display = 'block');
+                    shareBtn.innerText = "✅ کنفرم اور واٹس ایپ پر شیئر کریں";
+                    
+                }, 'image/png');
+
+            } catch (error) {
+                alert("مسئلہ: " + error);
+                hiddenElements.forEach(el => el.style.display = 'block');
+                shareBtn.innerText = "✅ کنفرم اور واٹس ایپ پر شیئر کریں";
+            }
+        });
+    </script>
+</body>
+</html>
